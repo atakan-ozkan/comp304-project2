@@ -7,7 +7,7 @@
 #include <sys/time.h>
 #include <semaphore.h>
 #include <unistd.h>
-#define TOTAL_ORDER 20
+#define TOTAL_ORDER 10
 #ifdef __APPLE__
     #include <dispatch/dispatch.h>
     typedef dispatch_semaphore_t psem_t;
@@ -18,9 +18,19 @@
 void psem_init(psem_t *sem, u_int32_t value);
 void psem_wait(psem_t sem);
 void psem_post(psem_t sem);
+struct Log{
+    int TaskID;
+    int GiftId;
+    int GiftType;
+    char TaskType;
+    int RequestTime;
+    int TaskArrival;
+    char Responsible;
+};
+
 
 int simulationTime = 120;    // simulation time
-int seed = 101;               // seed for randomness
+int seed = 10;               // seed for randomness
 int emergencyFrequency = 30; // frequency of emergency gift requests from New Zealand
 int timePassed = 0;
 int currentOrderNumbers= 0;
@@ -31,14 +41,20 @@ int waitingForAssembly = 0;
 int waitingForQA =0;
 int totalDeliveredOrder = 0;
 int totalCreatedOrders = 0;
+int totalTask=0;
+struct Log logArray[(4*TOTAL_ORDER)];
+
 Queue *myQ;
 psem_t semaphore;
+
 
 void* ElfA(void *arg); // the one that can paint
 void* ElfB(void *arg); // the one that can assemble
 void* Santa(void *arg);
 void* ControlThread(void *arg); // handles printing and queues (up to you)
 void* CreateOrder();
+void PrintLogs();
+void CreateNewLog( int taskID ,int giftId ,int giftType ,char taskType ,int requestTime ,int taskArrival ,char responsible);
 
 // pthread sleeper function
 int pthread_sleep (int seconds)
@@ -108,11 +124,13 @@ int main(int argc,char **argv){
         pthread_sleep(1);
         if(totalCreatedOrders > 0 && totalCreatedOrders == totalDeliveredOrder){
             printf("At seeconds: %d  ::  ALL ORDERS ARE DELIVERED! \n",timePassed);
+            printf("DONE : --------- Total Delivered Order : %d , Total Created Order : %d ---------\n"
+                           ,totalDeliveredOrder,totalCreatedOrders);
             break;
         }
-        //printf("Total qa ordes : %d \n",waitingForQA);
-        
+
     }
+    PrintLogs();
     //pthread_mutex_destroy(&mutex);
 
     // your code goes here
@@ -175,8 +193,18 @@ void* CreateOrder(int seconds){
         t.delivery =0 ;
         t.packaging = 0;
         totalCreatedOrders++;
+        
+        if(timePassed > 0 && timePassed%30 == 0){   // PART 3
+            t.fromNewZealand = 1;
+            printf("At Seconds : %d  ::  Order type %d from NEW ZEALAND is created! with ID %d\n",seconds,t.type,t.ID);
+        }
+        else{
+            t.fromNewZealand = 0;
+            printf("At Seconds : %d  ::  Order type %d is created! with ID %d\n",seconds,t.type,t.ID);
+        }
+        
 
-        printf("At Seconds : %d  ::  Order type %d is created! with ID %d\n",seconds,t.type,t.ID);
+        
         Enqueue(myQ, t);
         currentOrderNumbers++;
     }
@@ -202,29 +230,28 @@ void* ElfA(void *arg){ // PAINT AND PACKAGE
             if(t->stage == 1 && waitingForPackaging > 0){
                 psem_wait(semaphore);
                 if(t->packaging == 0){
-                    //start = clock();
                     printf("At Seconds : %d  ::  Elf A packaged order type %d with id %d\n",timePassed, t->type,t->ID);
                     pthread_sleep(1);
-                    //end = clock();
-                    //passed = ((double)end - start)/CLOCKS_PER_SEC;
+                    CreateNewLog(totalTask,t->ID,t->ID,'C',timePassed,timePassed+1,'A');
                     t->packaging = 1;
                     t->stage = 2;
                     waitingForPackaging--;
                     waitingForDelivery++;
+                    
+                    totalTask++;
                 }
                 psem_post(semaphore);
                 free(arg);
             }
             else if(waitingForPackaging == 0 && t->stage == 0 && t->painting == 0 && t->type ==2){
-                //start = clock();
                 printf("At Seconds : %d  ::  Elf A painted order type %d with id %d\n", timePassed, t->type,t->ID);
                 pthread_sleep(2);
-                //end = clock();
-                //passed = ((double)end - start)/CLOCKS_PER_SEC;
+                CreateNewLog(totalTask,t->ID,t->ID,'P',timePassed,timePassed+2,'A');
                 t->painting = 1;
                 t->stage = 1;
                 waitingForPainting--;
                 waitingForPackaging++;
+                totalTask++;
                 break;
             }
             
@@ -256,8 +283,10 @@ void* ElfB(void *arg){ // ASSEMBLY AND PACKAGE
                     pthread_sleep(1);
                     t->packaging = 1;
                     t->stage = 2;
+                    CreateNewLog(totalTask,t->ID,t->ID,'C',timePassed,timePassed+1,'B');
                     waitingForPackaging--;
                     waitingForDelivery++;
+                    totalTask++;
                 }
                 psem_post(semaphore);
                 free(arg);
@@ -267,8 +296,10 @@ void* ElfB(void *arg){ // ASSEMBLY AND PACKAGE
                 pthread_sleep(3);
                 t->assembly = 1;
                 t->stage = 1;
+                CreateNewLog(totalTask,t->ID,t->ID,'A',timePassed,timePassed+3,'B');
                 waitingForAssembly--;
                 waitingForPackaging++;
+                totalTask++;
                 break;
             }
             
@@ -298,8 +329,10 @@ void* Santa(void *arg){ // QA AND DELIVERY
                 printf("At Seconds : %d  ::  Santa delivered order type %d with id %d\n", timePassed,t->type,t->ID);
                 t->delivery = 1;
                 t->stage = 3;
+                CreateNewLog(totalTask,t->ID,t->ID,'D',timePassed,timePassed+1,'S');
                 waitingForDelivery--;
                 totalDeliveredOrder++;
+                totalTask++;
                 break;
             }
             else if(t->stage == 0 &&
@@ -308,8 +341,10 @@ void* Santa(void *arg){ // QA AND DELIVERY
                 printf("At Seconds : %d  ::  Santa did QA order type %d with id %d\n", timePassed,t->type,t->ID);
                 t->qa = 1;
                 t->stage = 1;
+                CreateNewLog(totalTask,t->ID,t->ID,'Q',timePassed,timePassed+1,'S');
                 waitingForQA--;
                 waitingForPackaging++;
+                totalTask++;
                 break;
             }
             
@@ -336,6 +371,31 @@ void* ControlThread(void *arg){
     
     return 0;
 }
+
+void PrintLogs(){
+    int maxLength= 4*TOTAL_ORDER;
+    printf("\n----- LOGS: -----\n\n");
+    printf("TaskID GiftID GiftType TaskType RequestTime TaskArrival Responsible\n");
+    for(int a=0; a<totalTask; a++){
+        if(a<maxLength){
+            printf("%d \t %d \t %d \t %c \t   %d \t\t %d \t %c\n",logArray[a].TaskID,logArray[a].GiftId ,logArray[a].GiftType,logArray[a].TaskType
+                   ,logArray[a].RequestTime,logArray[a].TaskArrival,logArray[a].Responsible);
+        }
+    }
+}
+
+void CreateNewLog( int taskID ,int giftId ,int giftType ,char taskType ,int requestTime ,int taskArrival ,char responsible){
+    logArray[taskID].TaskID =taskID;
+    logArray[taskID].GiftId =giftId;
+    logArray[taskID].GiftType =giftType;
+    logArray[taskID].TaskType =taskType;
+    logArray[taskID].RequestTime =requestTime;
+    logArray[taskID].TaskArrival =taskArrival;
+    logArray[taskID].Responsible =responsible;
+}
+
+
+
 
 
 #ifdef __APPLE__
