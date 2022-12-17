@@ -13,6 +13,7 @@ typedef struct {
     int qa;
     int delivery;
     int stage;
+    int fromNewZealand;
     // you might want to add variables here!
 } Task;
 
