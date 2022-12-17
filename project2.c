@@ -7,7 +7,7 @@
 #include <sys/time.h>
 #include <semaphore.h>
 #include <unistd.h>
-#define TOTAL_ORDER 15
+#define TOTAL_ORDER 20
 #ifdef __APPLE__
     #include <dispatch/dispatch.h>
     typedef dispatch_semaphore_t psem_t;
@@ -20,7 +20,7 @@ void psem_wait(psem_t sem);
 void psem_post(psem_t sem);
 
 int simulationTime = 120;    // simulation time
-int seed = 48324;               // seed for randomness
+int seed = 101;               // seed for randomness
 int emergencyFrequency = 30; // frequency of emergency gift requests from New Zealand
 int timePassed = 0;
 int currentOrderNumbers= 0;
@@ -96,7 +96,6 @@ int main(int argc,char **argv){
     ControlThread(Santa);
     
     while(TRUE){
-        printf("Total delivired ordes : %d // Total created orders: %d\n",totalDeliveredOrder,totalCreatedOrders);
         if(index< TOTAL_ORDER){
             CreateOrder(timePassed);
             index++;
@@ -108,6 +107,8 @@ int main(int argc,char **argv){
             printf("At seeconds: %d  ::  ALL ORDERS ARE DELIVERED! \n",timePassed);
             break;
         }
+        printf("Total qa ordes : %d \n",waitingForQA);
+        printf("Waiting to be delivered %d\n",waitingForDelivery);
     }
     //pthread_mutex_destroy(&mutex);
 
@@ -119,7 +120,7 @@ int main(int argc,char **argv){
 }
 void* CreateOrder(int seconds){
     int num = rand() % 100;
-    if (num < 90) {
+    if (num < 100) {
         Task t;
         if (num > 50) {
             t.type = 1; // PACKAGING -> DELIVERY
@@ -130,7 +131,7 @@ void* CreateOrder(int seconds){
             t.ID = currentOrderNumbers;
             waitingForPackaging++;
         }
-        else if (num > 30) {
+        else if (num > 45) {
             t.type = 2; // PAINTING -> PACKAGING -> DELIVERY
             t.painting = 0;
             t.assembly = -1;
@@ -139,7 +140,7 @@ void* CreateOrder(int seconds){
             t.ID = currentOrderNumbers;
             waitingForPainting++;
         }
-        else if(num > 10) {
+        else if(num > 39) {
             t.type = 3; // ASSEMBLY -> PACKAGING -> DELIVERY
             t.painting = -1;
             t.assembly = 0;
@@ -148,7 +149,7 @@ void* CreateOrder(int seconds){
             t.ID = currentOrderNumbers;
             waitingForAssembly++;
         }
-        else if(num > 5) {
+        else if(num > 20) {
             t.type = 4; // PAINTING && QA -> PACKAGING -> DELIVERY
             t.painting = 0;
             t.assembly = -1;
@@ -199,10 +200,10 @@ void* ElfA(void *arg){ // PAINT AND PACKAGE
                 psem_wait(semaphore);
                 if(t->packaging == 0){
                     //start = clock();
+                    printf("At Seconds : %d  ::  Elf A packaged order type %d with id %d\n",timePassed, t->type,t->ID);
                     pthread_sleep(1);
                     //end = clock();
                     //passed = ((double)end - start)/CLOCKS_PER_SEC;
-                    printf("At Seconds : %d  ::  Elf A packaged order type %d with id %d\n",timePassed, t->type,t->ID);
                     t->packaging = 1;
                     t->stage = 2;
                     waitingForPackaging--;
@@ -213,10 +214,10 @@ void* ElfA(void *arg){ // PAINT AND PACKAGE
             }
             else if(waitingForPackaging == 0 && t->stage == 0 && t->painting == 0 && t->type ==2){
                 //start = clock();
+                printf("At Seconds : %d  ::  Elf A painted order type %d with id %d\n", timePassed, t->type,t->ID);
                 pthread_sleep(2);
                 //end = clock();
                 //passed = ((double)end - start)/CLOCKS_PER_SEC;
-                printf("At Seconds : %d  ::  Elf A painted order type %d with id %d\n", timePassed, t->type,t->ID);
                 t->painting = 1;
                 t->stage = 1;
                 waitingForPainting--;
@@ -248,8 +249,8 @@ void* ElfB(void *arg){ // ASSEMBLY AND PACKAGE
             if(t->stage == 1 && waitingForPackaging > 0){
                 psem_wait(semaphore);
                 if(t->packaging == 0){
-                    pthread_sleep(1);
                     printf("At Seconds : %d  ::  Elf B packaged order type %d with id %d\n", timePassed,t->type,t->ID);
+                    pthread_sleep(1);
                     t->packaging = 1;
                     t->stage = 2;
                     waitingForPackaging--;
@@ -259,8 +260,8 @@ void* ElfB(void *arg){ // ASSEMBLY AND PACKAGE
                 free(arg);
             }
             else if(waitingForPackaging == 0 && t->stage == 0 && t->assembly == 0 && t->type ==3){
-                pthread_sleep(3);
                 printf("At Seconds : %d  ::  Elf B assembled order type %d with id %d\n", timePassed,t->type,t->ID);
+                pthread_sleep(3);
                 t->assembly = 1;
                 t->stage = 1;
                 waitingForAssembly--;
@@ -289,7 +290,7 @@ void* Santa(void *arg){ // QA AND DELIVERY
                 break;
             }
             //printf("id of : %d , stage : %d , packaging : %d , type : %d \n",t->ID,t->stage ,t->packaging,t->type);
-            if(t->stage == 2 && t->delivery == 0){
+            if(t->stage == 2 && t->delivery == 0 && (waitingForQA < 3 && waitingForDelivery > 0)){
                 pthread_sleep(1);
                 printf("At Seconds : %d  ::  Santa delivered order type %d with id %d\n", timePassed,t->type,t->ID);
                 t->delivery = 1;
@@ -298,7 +299,7 @@ void* Santa(void *arg){ // QA AND DELIVERY
                 totalDeliveredOrder++;
                 break;
             }
-            else if(waitingForDelivery == 0 && t->stage == 0 &&
+            else if(t->stage == 0 &&
                     t->qa == 0 && (t->type ==4 || t->type== 5)){
                 pthread_sleep(1);
                 printf("At Seconds : %d  ::  Santa did QA order type %d with id %d\n", timePassed,t->type,t->ID);
