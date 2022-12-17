@@ -28,6 +28,7 @@ BUGRAHAN YAMAN 76070 | DEPARTMENT OF COMPUTER ENGINEERING, KOC UNIVERSITY
 
 
 Introduction
+
 In this project, we implemented a deadlock-free simulator which uses multi-threading programming. We implemented five different types of gifts with the different randomizing configuration. For the ElfA which is an operator is implemented to do painting and packaging tasks. For the ElfB which is an also operator is implemented to do the concepts which are required assembly and packaging. We used semaphores to avoid any complication when both are available to do packaging. The last operator is Santa which responsible for delivery and QA tasks. The tasks are printed each second and after all packaged are delivered, there is a print of logs.
 
 
