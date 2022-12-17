@@ -96,6 +96,9 @@ int main(int argc,char **argv){
     ControlThread(Santa);
     
     while(TRUE){
+        printf("--------- Total Delivered Order : %d , Total Created Order : %d ---------\n"
+                       ,totalDeliveredOrder,totalCreatedOrders);
+        
         if(index< TOTAL_ORDER){
             CreateOrder(timePassed);
             index++;
@@ -107,8 +110,8 @@ int main(int argc,char **argv){
             printf("At seeconds: %d  ::  ALL ORDERS ARE DELIVERED! \n",timePassed);
             break;
         }
-        printf("Total qa ordes : %d \n",waitingForQA);
-        printf("Waiting to be delivered %d\n",waitingForDelivery);
+        //printf("Total qa ordes : %d \n",waitingForQA);
+        
     }
     //pthread_mutex_destroy(&mutex);
 
